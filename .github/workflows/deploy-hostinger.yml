@@ -1,0 +1,40 @@
+name: Deploy to Hostinger
+# Manual only: Actions tab -> "Deploy to Hostinger" -> Run workflow.
+# Static files in repo root are uploaded as-is (no build step).
+on:
+  workflow_dispatch:
+concurrency: { group: hostinger-deploy, cancel-in-progress: false }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required files and secrets
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_REMOTE_DIR: ${{ secrets.FTP_REMOTE_DIR || 'public_html/' }}
+        run: |
+          test -f index.html
+          test -n "$FTP_HOST" || { echo "::error::Secret FTP_HOST missing"; exit 1; }
+          case "$FTP_REMOTE_DIR" in */) ;; *) echo "::error::FTP_REMOTE_DIR must end with a slash (e.g. public_html/)"; exit 1;; esac
+          echo "Deploying to remote dir: $FTP_REMOTE_DIR"
+      - name: FTP deploy (never deletes remote files)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          port: 21
+          local-dir: ./
+          server-dir: ${{ secrets.FTP_REMOTE_DIR || 'public_html/' }}
+          dangerous-clean-slate: false
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            README*
+            **/README*
+            **/node_modules/**
+            **/*.log
+            **/.DS_Store
